@@ -1,0 +1,14 @@
+/home/douglas-neves/Projetos/Pessoais/metasploit-ui/target/debug/deps/serde-1106ba6b5b5a58a2.d: /home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/douglas-neves/Projetos/Pessoais/metasploit-ui/target/debug/build/serde-a94d01c3a3bd562c/out/private.rs
+
+/home/douglas-neves/Projetos/Pessoais/metasploit-ui/target/debug/deps/libserde-1106ba6b5b5a58a2.rlib: /home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/douglas-neves/Projetos/Pessoais/metasploit-ui/target/debug/build/serde-a94d01c3a3bd562c/out/private.rs
+
+/home/douglas-neves/Projetos/Pessoais/metasploit-ui/target/debug/deps/libserde-1106ba6b5b5a58a2.rmeta: /home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /home/douglas-neves/Projetos/Pessoais/metasploit-ui/target/debug/build/serde-a94d01c3a3bd562c/out/private.rs
+
+/home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/home/douglas-neves/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/home/douglas-neves/Projetos/Pessoais/metasploit-ui/target/debug/build/serde-a94d01c3a3bd562c/out/private.rs:
+
+# env-dep:OUT_DIR=/home/douglas-neves/Projetos/Pessoais/metasploit-ui/target/debug/build/serde-a94d01c3a3bd562c/out
