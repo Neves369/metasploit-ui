@@ -1,9 +1,14 @@
+use std::fs;
+use std::path::Path;
+
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use ratatui::Frame;
+
+use crate::msf::msfconsole;
 
 #[derive(Clone)]
 pub struct ScriptFile {
@@ -17,37 +22,66 @@ pub struct Resources {
     pub selected: Option<usize>,
     pub content: String,
     pub show_content: bool,
+    pub feedback_message: String,
 }
 
 impl Resources {
     pub fn new() -> Self {
-        let scripts = vec![
-            ScriptFile {
-                name: "handler.rc".into(),
-                path: "/home/msf/scripts/handler.rc".into(),
-                size: "245 B".into(),
-            },
-            ScriptFile {
-                name: "portscan.rc".into(),
-                path: "/home/msf/scripts/portscan.rc".into(),
-                size: "512 B".into(),
-            },
-            ScriptFile {
-                name: "reverse_tcp.rc".into(),
-                path: "/home/msf/scripts/reverse_tcp.rc".into(),
-                size: "180 B".into(),
-            },
-        ];
+        let scripts = Self::scan_scripts();
 
         Self {
             scripts,
             selected: None,
             content: String::new(),
             show_content: false,
+            feedback_message: String::new(),
         }
     }
 
+    fn scan_scripts() -> Vec<ScriptFile> {
+        let mut scripts = Vec::new();
+        let dirs = [".", "./scripts"];
+
+        for dir in &dirs {
+            let path = Path::new(dir);
+            if !path.is_dir() {
+                continue;
+            }
+            if let Ok(entries) = fs::read_dir(path) {
+                for entry in entries.flatten() {
+                    let p = entry.path();
+                    if p.extension().map_or(false, |e| e == "rc") {
+                        let size = fs::metadata(&p)
+                            .ok()
+                            .map(|m| {
+                                let s = m.len();
+                                if s < 1024 {
+                                    format!("{s} B")
+                                } else {
+                                    format!("{:.1} KB", s as f64 / 1024.0)
+                                }
+                            })
+                            .unwrap_or_default();
+                        scripts.push(ScriptFile {
+                            name: p
+                                .file_name()
+                                .map(|n| n.to_string_lossy().to_string())
+                                .unwrap_or_default(),
+                            path: p.to_string_lossy().to_string(),
+                            size,
+                        });
+                    }
+                }
+            }
+        }
+
+        scripts.sort_by(|a, b| a.name.cmp(&b.name));
+        scripts
+    }
+
     pub fn handle_key(&mut self, key: KeyEvent) -> bool {
+        self.feedback_message.clear();
+
         if self.show_content {
             match key.code {
                 KeyCode::Esc | KeyCode::Enter => {
@@ -60,17 +94,16 @@ impl Resources {
 
         match key.code {
             KeyCode::Up => {
-                self.selected = Some(
-                    self.selected
-                        .map_or(0, |i| i.saturating_sub(1)),
-                );
+                self.selected = Some(self.selected.map_or(0, |i| i.saturating_sub(1)));
                 true
             }
             KeyCode::Down => {
                 if self.scripts.is_empty() {
                     return true;
                 }
-                let next = self.selected.map_or(0, |i| (i + 1).min(self.scripts.len() - 1));
+                let next = self
+                    .selected
+                    .map_or(0, |i| (i + 1).min(self.scripts.len() - 1));
                 self.selected = Some(next);
                 true
             }
@@ -78,11 +111,16 @@ impl Resources {
                 if let Some(idx) = self.selected {
                     if idx < self.scripts.len() {
                         let script = &self.scripts[idx];
-                        self.content = format!(
-                            "# Resource Script: {}\n# Path: {}\n# Size: {}\n\nuse exploit/multi/handler\nset PAYLOAD windows/x64/meterpreter/reverse_tcp\nset LHOST 0.0.0.0\nset LPORT 4444\nexploit -j\n",
-                            script.name, script.path, script.size
-                        );
-                        self.show_content = true;
+                        match fs::read_to_string(&script.path) {
+                            Ok(text) => {
+                                self.content = text;
+                                self.show_content = true;
+                            }
+                            Err(e) => {
+                                self.feedback_message =
+                                    format!("Failed to read {}: {e}", script.name);
+                            }
+                        }
                     }
                 }
                 true
@@ -90,8 +128,24 @@ impl Resources {
             KeyCode::Char('r') => {
                 if let Some(idx) = self.selected {
                     if idx < self.scripts.len() {
-                        // Would run: msfconsole -q -r <script>
-                        // For now, just a placeholder
+                        let script = &self.scripts[idx];
+                        match msfconsole::run_resource_script(&script.path) {
+                            Ok(output) => {
+                                let lines: Vec<&str> =
+                                    output.lines().filter(|l| !l.is_empty()).collect();
+                                let preview = if lines.len() > 5 {
+                                    format!("{} (...)", lines[..5].join(" | "))
+                                } else {
+                                    lines.join(" | ")
+                                };
+                                self.feedback_message =
+                                    format!("[r] {}: {}", script.name, preview);
+                            }
+                            Err(e) => {
+                                self.feedback_message =
+                                    format!("[r] Error running {}: {e}", script.name);
+                            }
+                        }
                     }
                 }
                 true
@@ -106,6 +160,10 @@ impl Resources {
         area: Rect,
         _message: &str,
     ) -> String {
+        if !self.feedback_message.is_empty() {
+            return self.feedback_message.clone();
+        }
+
         if self.show_content {
             return self.render_content_view(f, area);
         }
@@ -130,6 +188,15 @@ impl Resources {
         let block = Block::default()
             .title(" Resource Scripts ")
             .borders(Borders::ALL);
+
+        if self.scripts.is_empty() {
+            let msg = Line::from(Span::styled(
+                " No .rc files found in . or ./scripts/",
+                Style::default().add_modifier(Modifier::DIM),
+            ));
+            f.render_widget(Paragraph::new(vec![msg]).block(block), area);
+            return;
+        }
 
         let mut lines = vec![Line::from(vec![
             Span::styled(" Name                  ", Style::default().add_modifier(Modifier::BOLD)),

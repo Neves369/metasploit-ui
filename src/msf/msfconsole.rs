@@ -1,3 +1,4 @@
+use crate::msf::runner::run_command;
 use crate::msf::runner::run_msf_command;
 use crate::msf::parser;
 
@@ -23,8 +24,22 @@ pub fn init_db() -> Result<String, String> {
     run_command("msfdb", &["init"])
 }
 
-use crate::msf::runner::run_command;
-
 pub fn update_msf() -> Result<String, String> {
     run_command("msfupdate", &[])
+}
+
+pub fn list_sessions() -> Result<String, String> {
+    run_msf_command(&["sessions -l", "exit"])
+}
+
+pub fn kill_session(id: u32) -> Result<String, String> {
+    run_msf_command(&[&format!("sessions -k {id}"), "exit"])
+}
+
+pub fn upgrade_session(id: u32) -> Result<String, String> {
+    run_msf_command(&[&format!("sessions -u {id}"), "exit"])
+}
+
+pub fn run_resource_script(path: &str) -> Result<String, String> {
+    run_command("msfconsole", &["-q", "-r", path])
 }

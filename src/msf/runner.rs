@@ -1,4 +1,8 @@
-use std::process::Command;
+use std::sync::mpsc;
+use std::process::{Command, Stdio};
+use std::time::Duration;
+
+const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Clone)]
 pub struct HealthCheckResult {
@@ -9,8 +13,28 @@ pub struct HealthCheckResult {
 }
 
 fn run_cmd(cmd: &str, args: &[&str]) -> (bool, String) {
-    match Command::new(cmd).args(args).output() {
-        Ok(output) => {
+    run_cmd_with_timeout(cmd, args, DEFAULT_TIMEOUT)
+}
+
+fn run_cmd_with_timeout(cmd: &str, args: &[&str], timeout: Duration) -> (bool, String) {
+    let child = match Command::new(cmd).args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(e) => return (false, format!("error: {e}")),
+    };
+
+    let pid = child.id();
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let result = child.wait_with_output();
+        let _ = tx.send(result);
+    });
+
+    match rx.recv_timeout(timeout) {
+        Ok(Ok(output)) => {
             let mut combined = String::new();
             if !output.stdout.is_empty() {
                 combined.push_str(&String::from_utf8_lossy(&output.stdout));
@@ -23,7 +47,15 @@ fn run_cmd(cmd: &str, args: &[&str]) -> (bool, String) {
             }
             (output.status.success(), combined)
         }
-        Err(e) => (false, format!("error: {e}")),
+        Ok(Err(e)) => (false, format!("error: {e}")),
+        Err(mpsc::RecvTimeoutError::Timeout) => {
+            let _ = Command::new("kill").arg(pid.to_string()).output();
+            let _ = rx.recv();
+            (false, format!("timeout: {cmd} did not respond within {timeout:?}"))
+        }
+        Err(mpsc::RecvTimeoutError::Disconnected) => {
+            (false, format!("error: {cmd} process disconnected"))
+        }
     }
 }
 

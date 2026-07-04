@@ -74,6 +74,14 @@ impl App {
         Ok(())
     }
 
+    fn on_tab_changed(&mut self) {
+        self.status_message.clear();
+        match self.current_tab {
+            3 => self.sessions.load_sessions(),
+            _ => {}
+        }
+    }
+
     fn handle_key(&mut self, key: KeyEvent) {
         if self.show_help {
             if key.code == KeyCode::Esc || key.code == KeyCode::Char('?') {
@@ -94,7 +102,7 @@ impl App {
             }
             KeyCode::Tab => {
                 self.current_tab = (self.current_tab + 1) % 6;
-                self.status_message.clear();
+                self.on_tab_changed();
             }
             KeyCode::BackTab => {
                 self.current_tab = if self.current_tab == 0 {
@@ -102,11 +110,11 @@ impl App {
                 } else {
                     self.current_tab - 1
                 };
-                self.status_message.clear();
+                self.on_tab_changed();
             }
             KeyCode::Char(c) if c.is_ascii_digit() && c > '0' && c <= '6' => {
                 self.current_tab = (c as u8 - b'1') as usize;
-                self.status_message.clear();
+                self.on_tab_changed();
             }
             _ => {
                 let consumed = match self.current_tab {
