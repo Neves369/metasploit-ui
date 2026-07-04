@@ -47,22 +47,31 @@ impl Dashboard {
         _message: &str,
     ) -> String {
         let has_health = self.health.is_some();
+
+        let health_height = if has_health {
+            let db = &self.health.as_ref().unwrap().db_status;
+            if !db.0 && db.1 == "press [h] to check" {
+                4
+            } else {
+                7
+            }
+        } else {
+            2
+        };
+
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(8),
-                Constraint::Length(if has_health { 7 } else { 2 }),
-                Constraint::Length(if has_health { 4 } else { 0 }),
+                Constraint::Length(health_height),
+               Constraint::Length(1),
                 Constraint::Min(0),
             ])
             .split(area);
 
         self.render_banner(f, chunks[0]);
         self.render_health(f, chunks[1]);
-        if has_health {
-            self.render_module_counts(f, chunks[2]);
-        }
-        self.render_quick_actions(f, chunks[3], has_health);
+        self.render_quick_actions(f, chunks[3]);
 
         String::new()
     }
@@ -93,7 +102,7 @@ impl Dashboard {
             None => vec![
                 Line::from(Span::raw("")),
                 Line::from(Span::styled(
-                    "  Press [h] to run system health check  ",
+                    "  Press [h] to run system health check",
                     Style::default().add_modifier(Modifier::DIM),
                 )),
             ],
@@ -129,81 +138,19 @@ impl Dashboard {
         ])
     }
 
-    fn render_module_counts(&self, f: &mut Frame, area: Rect) {
-        let pad = |s: &str, w: usize| -> String {
-            if s.len() >= w {
-                s.to_string()
-            } else {
-                format!("{}{}", s, " ".repeat(w - s.len()))
-            }
-        };
-
-        let counts = match &self.health {
-            Some(h) => &h.module_counts,
-            None => return,
-        };
-
-        let to_line = |items: &[(String, usize)]| -> Line {
-            let mut spans = Vec::new();
-            for (cat, count) in items {
-                spans.push(Span::styled(
-                    format!(" {}: ", pad(cat, 10)),
-                    Style::default().add_modifier(Modifier::DIM),
-                ));
-                spans.push(Span::styled(
-                    format!("{:>4}", count),
+    fn render_quick_actions(&self, f: &mut Frame, area: Rect) {
+        let lines = vec![
+            Line::from(vec![
+                Span::styled(
+                    " [h] ",
                     Style::default().add_modifier(Modifier::BOLD),
-                ));
-                spans.push(Span::raw("  "));
-            }
-            Line::from(spans)
-        };
-
-        let (first, second) = counts.split_at(4);
-        let lines = vec![to_line(first), to_line(second)];
-
-        let paragraph = Paragraph::new(lines)
-            .block(
-                Block::default()
-                    .title(" Module Counts ")
-                    .borders(Borders::ALL),
-            );
-        f.render_widget(paragraph, area);
-    }
-
-    fn render_quick_actions(&self, f: &mut Frame, area: Rect, has_health: bool) {
-        let mut actions = vec![
-            ("[h]", "Health check"),
-            ("[r]", "Refresh modules"),
-            ("[u]", "Update Metasploit"),
-            ("[d]", "Database: init/connect"),
-            ("[g]", "Generate payload"),
-            ("[s]", "Search modules"),
+                ),
+                Span::styled(
+                    "Run health check (re-check msfconsole, msfvenom, ruby, db)",
+                    Style::default().add_modifier(Modifier::DIM),
+                ),
+            ]),
         ];
-
-        if !has_health {
-            actions.insert(0, ("[h]", "Run health check"));
-        }
-
-        let lines: Vec<Line> = actions
-            .chunks(3)
-            .map(|chunk| {
-                let spans: Vec<Span> = chunk
-                    .iter()
-                    .flat_map(|(key, desc)| {
-                        vec![
-                            Span::styled(
-                                format!(" {key} "),
-                                Style::default().add_modifier(Modifier::BOLD),
-                            ),
-                            Span::styled(*desc, Style::default().add_modifier(Modifier::DIM)),
-                            Span::raw("   "),
-                        ]
-                    })
-                    .collect();
-                Line::from(spans)
-            })
-            .collect();
 
         let paragraph = Paragraph::new(lines)
             .block(

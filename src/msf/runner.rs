@@ -6,107 +6,106 @@ pub struct HealthCheckResult {
     pub msfvenom_version: (bool, String),
     pub ruby_version: (bool, String),
     pub db_status: (bool, String),
-    pub module_counts: Vec<(String, usize)>,
+}
+
+fn run_cmd(cmd: &str, args: &[&str]) -> (bool, String) {
+    match Command::new(cmd).args(args).output() {
+        Ok(output) => {
+            let mut combined = String::new();
+            if !output.stdout.is_empty() {
+                combined.push_str(&String::from_utf8_lossy(&output.stdout));
+            }
+            if !output.stderr.is_empty() {
+                if !combined.is_empty() {
+                    combined.push('\n');
+                }
+                combined.push_str(&String::from_utf8_lossy(&output.stderr));
+            }
+            (output.status.success(), combined)
+        }
+        Err(e) => (false, format!("error: {e}")),
+    }
+}
+
+fn first_line(text: &str) -> String {
+    text.lines()
+        .find(|l| !l.is_empty())
+        .unwrap_or("unknown")
+        .trim()
+        .to_string()
 }
 
 pub fn check_msf_installed() -> (bool, String) {
-    match Command::new("msfconsole").arg("--version").output() {
-        Ok(output) => {
-            if output.status.success() {
-                let version = String::from_utf8_lossy(&output.stdout)
-                    .lines()
-                    .next()
-                    .unwrap_or("unknown")
-                    .to_string();
-                (true, version)
-            } else {
-                (false, "error".to_string())
-            }
+    let (ok, output) = run_cmd("msfconsole", &["--version"]);
+    if ok {
+        let version = first_line(&output);
+        if version.is_empty() || version == "unknown" {
+            (false, "not detected".to_string())
+        } else {
+            (true, version)
         }
-        Err(_) => (false, "not found".to_string()),
+    } else {
+        let version = first_line(&output);
+        if version.is_empty() || version == "unknown" {
+            (false, "not found".to_string())
+        } else {
+            (true, version)
+        }
     }
 }
 
 pub fn check_msfvenom_installed() -> (bool, String) {
-    match Command::new("msfvenom").arg("--version").output() {
-        Ok(output) => {
-            if output.status.success() {
-                let version = String::from_utf8_lossy(&output.stdout)
-                    .lines()
-                    .next()
-                    .unwrap_or("unknown")
-                    .to_string();
-                (true, version)
-            } else {
-                (false, "error".to_string())
-            }
+    let (ok, output) = run_cmd("msfvenom", &["--version"]);
+    if ok {
+        let version = first_line(&output);
+        if version.is_empty() || version == "unknown" {
+            (false, "not detected".to_string())
+        } else {
+            (true, version)
         }
-        Err(_) => (false, "not found".to_string()),
+    } else {
+        let version = first_line(&output);
+        if version.is_empty() || version == "unknown" {
+            (false, "not found".to_string())
+        } else {
+            (true, version)
+        }
     }
 }
 
 pub fn check_ruby_version() -> (bool, String) {
-    match Command::new("ruby").arg("--version").output() {
-        Ok(output) => {
-            if output.status.success() {
-                let version = String::from_utf8_lossy(&output.stdout)
-                    .lines()
-                    .next()
-                    .unwrap_or("unknown")
-                    .trim()
-                    .to_string();
-                (true, version)
-            } else {
-                (false, "error".to_string())
-            }
+    let (ok, output) = run_cmd("ruby", &["--version"]);
+    if ok {
+        let version = first_line(&output);
+        if version.is_empty() || version == "unknown" {
+            (false, "not detected".to_string())
+        } else {
+            (true, version)
         }
-        Err(_) => (false, "not found".to_string()),
+    } else {
+        (false, "not found".to_string())
     }
 }
 
 pub fn check_db_status() -> (bool, String) {
-    match Command::new("msfconsole")
-        .args(["-q", "-x", "db_status; exit"])
-        .output()
-    {
-        Ok(output) => {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let line = stdout.lines().find(|l| l.contains("connected")).unwrap_or("");
-            if !line.is_empty() {
-                (true, line.trim().to_string())
-            } else {
-                let msg = stdout.lines().find(|l| l.contains("db_status")).unwrap_or("not available");
-                (false, msg.trim().to_string())
-            }
-        }
-        Err(_) => (false, "could not query".to_string()),
+    let (_ok, output) = run_cmd("msfconsole", &["-q", "-x", "db_status; exit"]);
+    let output = output.trim();
+    let output_lower = output.to_lowercase();
+    if output_lower.contains("connected") {
+        let msg = output
+            .lines()
+            .find(|l| l.to_lowercase().contains("database"))
+            .unwrap_or("connected");
+        (true, msg.trim().to_string())
+    } else if output_lower.contains("postgres") {
+        (true, "connected to postgresql".to_string())
+    } else {
+        let msg = output
+            .lines()
+            .find(|l| l.to_lowercase().contains("database"))
+            .unwrap_or("not connected");
+        (false, msg.trim().to_string())
     }
-}
-
-pub fn count_modules() -> Vec<(String, usize)> {
-    let output = match Command::new("msfconsole")
-        .args(["-q", "-x", "show -a; exit"])
-        .output()
-    {
-        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
-        _ => {
-            let categories = ["exploit", "auxiliary", "payload", "post", "encoder", "nop", "evasion"];
-            return categories.iter().map(|c| (c.to_string(), 0)).collect();
-        }
-    };
-
-    let categories = ["exploit", "auxiliary", "payload", "post", "encoder", "nop", "evasion"];
-    let mut counts: Vec<(String, usize)> = categories.iter().map(|c| (c.to_string(), 0)).collect();
-
-    for line in output.lines() {
-        for (i, cat) in categories.iter().enumerate() {
-            if line.trim_start().starts_with(&format!("{cat}/")) {
-                counts[i].1 += 1;
-                break;
-            }
-        }
-    }
-    counts
 }
 
 pub fn quick_check() -> HealthCheckResult {
@@ -115,15 +114,6 @@ pub fn quick_check() -> HealthCheckResult {
         msfvenom_version: check_msfvenom_installed(),
         ruby_version: check_ruby_version(),
         db_status: (false, "press [h] to check".to_string()),
-        module_counts: vec![
-            ("exploit".to_string(), 0),
-            ("auxiliary".to_string(), 0),
-            ("payload".to_string(), 0),
-            ("post".to_string(), 0),
-            ("encoder".to_string(), 0),
-            ("nop".to_string(), 0),
-            ("evasion".to_string(), 0),
-        ],
     }
 }
 
@@ -133,7 +123,6 @@ pub fn run_health_check() -> HealthCheckResult {
         msfvenom_version: check_msfvenom_installed(),
         ruby_version: check_ruby_version(),
         db_status: check_db_status(),
-        module_counts: count_modules(),
     }
 }
 
