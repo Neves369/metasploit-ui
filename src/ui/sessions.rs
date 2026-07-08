@@ -285,11 +285,12 @@ impl Sessions {
             return self.feedback_message.clone();
         }
 
-        if self.show_detail && self.selected.is_some() {
-            let idx = self.selected.unwrap();
-            if idx < self.sessions.len() {
-                self.render_session_detail(f, area, &self.sessions[idx]);
-                return format!("Session #{}", self.sessions[idx].id);
+        if self.show_detail {
+            if let Some(idx) = self.selected {
+                if idx < self.sessions.len() {
+                    self.render_session_detail(f, area, &self.sessions[idx]);
+                    return format!("Session #{}", self.sessions[idx].id);
+                }
             }
         }
 

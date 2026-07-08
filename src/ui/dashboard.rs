@@ -46,11 +46,8 @@ impl Dashboard {
         area: Rect,
         _message: &str,
     ) -> String {
-        let has_health = self.health.is_some();
-
-        let health_height = if has_health {
-            let db = &self.health.as_ref().unwrap().db_status;
-            if !db.0 && db.1 == "press [h] to check" {
+        let health_height = if let Some(health) = &self.health {
+            if !health.db_status.0 && health.db_status.1 == "press [h] to check" {
                 4
             } else {
                 7
@@ -106,14 +103,12 @@ impl Dashboard {
                     Style::default().add_modifier(Modifier::DIM),
                 )),
             ],
-            Some(h) => {
-                let mut items = Vec::new();
-                items.push(self.status_line("msfconsole", &h.msf_version));
-                items.push(self.status_line("msfvenom  ", &h.msfvenom_version));
-                items.push(self.status_line("ruby      ", &h.ruby_version));
-                items.push(self.status_line("database  ", &h.db_status));
-                items
-            }
+            Some(h) => vec![
+                self.status_line("msfconsole", &h.msf_version),
+                self.status_line("msfvenom  ", &h.msfvenom_version),
+                self.status_line("ruby      ", &h.ruby_version),
+                self.status_line("database  ", &h.db_status),
+            ],
         };
 
         let paragraph = Paragraph::new(lines)

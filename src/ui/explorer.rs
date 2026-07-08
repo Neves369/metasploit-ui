@@ -400,8 +400,7 @@ impl Explorer {
                 true
             }
             KeyCode::Up => {
-                if self.selected_module.is_some() {
-                    let idx = self.selected_module.unwrap();
+                if let Some(idx) = self.selected_module {
                     if idx > 0 {
                         let new_idx = idx - 1;
                         self.selected_module = Some(new_idx);

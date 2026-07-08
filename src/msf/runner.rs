@@ -1,6 +1,7 @@
+use std::io::Read;
 use std::sync::mpsc;
 use std::process::{Command, Stdio};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -17,7 +18,8 @@ fn run_cmd(cmd: &str, args: &[&str]) -> (bool, String) {
 }
 
 fn run_cmd_with_timeout(cmd: &str, args: &[&str], timeout: Duration) -> (bool, String) {
-    let child = match Command::new(cmd).args(args)
+    let mut child = match Command::new(cmd)
+        .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -26,36 +28,63 @@ fn run_cmd_with_timeout(cmd: &str, args: &[&str], timeout: Duration) -> (bool, S
         Err(e) => return (false, format!("error: {e}")),
     };
 
-    let pid = child.id();
-    let (tx, rx) = mpsc::channel();
+    let mut stdout = child.stdout.take().unwrap();
+    let mut stderr = child.stderr.take().unwrap();
+
+    let (stdout_tx, stdout_rx) = mpsc::channel();
+    let (stderr_tx, stderr_rx) = mpsc::channel();
+
     std::thread::spawn(move || {
-        let result = child.wait_with_output();
-        let _ = tx.send(result);
+        let mut buffer = String::new();
+        let _ = stdout.read_to_string(&mut buffer);
+        let _ = stdout_tx.send(buffer);
     });
 
-    match rx.recv_timeout(timeout) {
-        Ok(Ok(output)) => {
-            let mut combined = String::new();
-            if !output.stdout.is_empty() {
-                combined.push_str(&String::from_utf8_lossy(&output.stdout));
+    std::thread::spawn(move || {
+        let mut buffer = String::new();
+        let _ = stderr.read_to_string(&mut buffer);
+        let _ = stderr_tx.send(buffer);
+    });
+
+    let start = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let stdout = stdout_rx.recv().unwrap_or_default();
+                let stderr = stderr_rx.recv().unwrap_or_default();
+                let output = combine_output(stdout, stderr);
+                return (status.success(), output);
             }
-            if !output.stderr.is_empty() {
-                if !combined.is_empty() {
-                    combined.push('\n');
+            Ok(None) => {
+                if start.elapsed() >= timeout {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    let stdout = stdout_rx.recv().unwrap_or_default();
+                    let stderr = stderr_rx.recv().unwrap_or_default();
+                    let output = combine_output(stdout, stderr);
+                    return (
+                        false,
+                        format!(
+                            "timeout: {cmd} did not respond within {timeout:?}\n{output}"
+                        ),
+                    );
                 }
-                combined.push_str(&String::from_utf8_lossy(&output.stderr));
+                std::thread::sleep(Duration::from_millis(10));
             }
-            (output.status.success(), combined)
+            Err(e) => {
+                return (false, format!("error: {e}"));
+            }
         }
-        Ok(Err(e)) => (false, format!("error: {e}")),
-        Err(mpsc::RecvTimeoutError::Timeout) => {
-            let _ = Command::new("kill").arg(pid.to_string()).output();
-            let _ = rx.recv();
-            (false, format!("timeout: {cmd} did not respond within {timeout:?}"))
-        }
-        Err(mpsc::RecvTimeoutError::Disconnected) => {
-            (false, format!("error: {cmd} process disconnected"))
-        }
+    }
+}
+
+fn combine_output(stdout: String, stderr: String) -> String {
+    if stdout.is_empty() {
+        stderr
+    } else if stderr.is_empty() {
+        stdout
+    } else {
+        format!("{stdout}\n{stderr}")
     }
 }
 
@@ -67,48 +96,37 @@ fn first_line(text: &str) -> String {
         .to_string()
 }
 
-pub fn check_msf_installed() -> (bool, String) {
-    let (ok, output) = run_cmd("msfconsole", &["--version"]);
+fn check_cli_version(cmd: &str, args: &[&str]) -> (bool, String) {
+    let (ok, output) = run_cmd(cmd, args);
+    let version = first_line(&output);
+
     if ok {
-        let version = first_line(&output);
         if version.is_empty() || version == "unknown" {
             (false, "not detected".to_string())
         } else {
             (true, version)
         }
     } else {
-        let version = first_line(&output);
         if version.is_empty() || version == "unknown" {
             (false, "not found".to_string())
         } else {
-            (true, version)
+            (false, version)
         }
     }
 }
 
+pub fn check_msf_installed() -> (bool, String) {
+    check_cli_version("msfconsole", &["--version"])
+}
+
 pub fn check_msfvenom_installed() -> (bool, String) {
-    let (ok, output) = run_cmd("msfvenom", &["--version"]);
-    if ok {
-        let version = first_line(&output);
-        if version.is_empty() || version == "unknown" {
-            (false, "not detected".to_string())
-        } else {
-            (true, version)
-        }
-    } else {
-        let version = first_line(&output);
-        if version.is_empty() || version == "unknown" {
-            (false, "not found".to_string())
-        } else {
-            (true, version)
-        }
-    }
+    check_cli_version("msfvenom", &["--version"])
 }
 
 pub fn check_ruby_version() -> (bool, String) {
     let (ok, output) = run_cmd("ruby", &["--version"]);
+    let version = first_line(&output);
     if ok {
-        let version = first_line(&output);
         if version.is_empty() || version == "unknown" {
             (false, "not detected".to_string())
         } else {

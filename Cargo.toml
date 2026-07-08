@@ -2,6 +2,12 @@
 name = "metasploit-tui"
 version = "0.1.0"
 edition = "2021"
+description = "A terminal user interface for the Metasploit Framework, built with Rust"
+authors = ["Your Name <your.email@example.com>"]
+license = "MIT"
+repository = "https://github.com/seu-usuario/metasploit-ui"
+description = "Metasploit Framework terminal UI"
+license = "MIT"
 
 [dependencies]
 ratatui = "0.28"

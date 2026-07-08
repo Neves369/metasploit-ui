@@ -85,3 +85,45 @@ pub fn list_encoders() -> Result<String, String> {
 pub fn list_formats() -> Result<String, String> {
     run_command("msfvenom", &["--list", "formats"])
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_command_includes_required_options() {
+        let opts = PayloadOptions {
+            payload: "windows/meterpreter/reverse_tcp".to_string(),
+            lhost: Some("127.0.0.1".to_string()),
+            lport: Some("4444".to_string()),
+            format: Some("exe".to_string()),
+            encoder: Some("x86/shikata_ga_nai".to_string()),
+            iterations: Some(3),
+            platform: Some("windows".to_string()),
+            arch: Some("x86".to_string()),
+            output: Some("out.exe".to_string()),
+            extra: vec!["-b".to_string(), "\\x00".to_string()],
+        };
+
+        let args = build_command(&opts);
+
+        assert_eq!(args[0], "-p");
+        assert_eq!(args[1], "windows/meterpreter/reverse_tcp");
+        assert!(args.contains(&"LHOST=127.0.0.1".to_string()));
+        assert!(args.contains(&"LPORT=4444".to_string()));
+        assert!(args.contains(&"-f".to_string()));
+        assert!(args.contains(&"exe".to_string()));
+        assert!(args.contains(&"-e".to_string()));
+        assert!(args.contains(&"x86/shikata_ga_nai".to_string()));
+        assert!(args.contains(&"-i".to_string()));
+        assert!(args.contains(&"3".to_string()));
+        assert!(args.contains(&"--platform".to_string()));
+        assert!(args.contains(&"windows".to_string()));
+        assert!(args.contains(&"-a".to_string()));
+        assert!(args.contains(&"x86".to_string()));
+        assert!(args.contains(&"-o".to_string()));
+        assert!(args.contains(&"out.exe".to_string()));
+        assert!(args.contains(&"-b".to_string()));
+        assert!(args.contains(&"\\x00".to_string()));
+    }
+}

@@ -8,6 +8,7 @@ use ratatui::Terminal;
 
 use crate::components::status_bar::StatusBar;
 use crate::components::tab_bar::TabBar;
+use crate::tabs::Tab;
 use crate::ui::console_tab::ConsoleTab;
 use crate::ui::dashboard::Dashboard;
 use crate::ui::explorer::Explorer;
@@ -16,7 +17,7 @@ use crate::ui::resources::Resources;
 use crate::ui::sessions::Sessions;
 
 pub struct App {
-    pub current_tab: usize,
+    pub current_tab: Tab,
     pub should_quit: bool,
     pub status_message: String,
     pub show_help: bool,
@@ -35,7 +36,7 @@ pub struct App {
 impl App {
     pub fn new() -> Self {
         Self {
-            current_tab: 0,
+            current_tab: Tab::Dashboard,
             should_quit: false,
             status_message: String::new(),
             show_help: false,
@@ -76,9 +77,8 @@ impl App {
 
     fn on_tab_changed(&mut self) {
         self.status_message.clear();
-        match self.current_tab {
-            3 => self.sessions.load_sessions(),
-            _ => {}
+        if self.current_tab == Tab::Sessions {
+            self.sessions.load_sessions();
         }
     }
 
@@ -101,30 +101,27 @@ impl App {
                 self.show_help = true;
             }
             KeyCode::Tab => {
-                self.current_tab = (self.current_tab + 1) % 6;
+                self.current_tab = self.current_tab.next();
                 self.on_tab_changed();
             }
             KeyCode::BackTab => {
-                self.current_tab = if self.current_tab == 0 {
-                    5
-                } else {
-                    self.current_tab - 1
-                };
+                self.current_tab = self.current_tab.prev();
                 self.on_tab_changed();
             }
             KeyCode::Char(c) if c.is_ascii_digit() && c > '0' && c <= '6' => {
-                self.current_tab = (c as u8 - b'1') as usize;
-                self.on_tab_changed();
+                if let Some(tab) = Tab::from_index((c as u8 - b'1') as usize) {
+                    self.current_tab = tab;
+                    self.on_tab_changed();
+                }
             }
             _ => {
                 let consumed = match self.current_tab {
-                    0 => self.dashboard.handle_key(key),
-                    1 => self.explorer.handle_key(key),
-                    2 => self.payload_gen.handle_key(key),
-                    3 => self.sessions.handle_key(key),
-                    4 => self.console_tab.handle_key(key),
-                    5 => self.resources.handle_key(key),
-                    _ => false,
+                    Tab::Dashboard => self.dashboard.handle_key(key),
+                    Tab::Explorer => self.explorer.handle_key(key),
+                    Tab::Payload => self.payload_gen.handle_key(key),
+                    Tab::Sessions => self.sessions.handle_key(key),
+                    Tab::Console => self.console_tab.handle_key(key),
+                    Tab::Resources => self.resources.handle_key(key),
                 };
                 if !consumed {
                     self.status_message = format!("Unbound key: {:?}", key.code);
@@ -145,19 +142,20 @@ impl App {
             ])
             .split(f.area());
 
-        self.tab_bar.render(f, chunks[0], self.current_tab);
+        self.tab_bar
+            .render(f, chunks[0], self.current_tab.as_usize());
 
         let content = match self.current_tab {
-            0 => self.dashboard.render(f, chunks[1], &self.status_message),
-            1 => self.explorer.render(f, chunks[1], &self.status_message),
-            2 => self.payload_gen.render(f, chunks[1], &self.status_message),
-            3 => self.sessions.render(f, chunks[1], &self.status_message),
-            4 => self.console_tab.render(f, chunks[1]),
-            5 => self.resources.render(f, chunks[1], &self.status_message),
-            _ => String::new(),
+            Tab::Dashboard => self.dashboard.render(f, chunks[1], &self.status_message),
+            Tab::Explorer => self.explorer.render(f, chunks[1], &self.status_message),
+            Tab::Payload => self.payload_gen.render(f, chunks[1], &self.status_message),
+            Tab::Sessions => self.sessions.render(f, chunks[1], &self.status_message),
+            Tab::Console => self.console_tab.render(f, chunks[1]),
+            Tab::Resources => self.resources.render(f, chunks[1], &self.status_message),
         };
 
-        self.status_bar.render(f, chunks[2], self.current_tab, &content);
+        self.status_bar
+            .render(f, chunks[2], self.current_tab.as_usize(), &content);
 
         if self.show_help {
             self.render_help(f);

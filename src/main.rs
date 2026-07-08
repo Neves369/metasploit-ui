@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::io::stdout;
 use std::panic;
 
@@ -11,12 +9,15 @@ use ratatui::Terminal;
 mod app;
 mod components;
 mod msf;
+mod tabs;
 mod ui;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let original_hook = panic::take_hook();
     panic::set_hook(Box::new(move |panic_info| {
-        let _ = restore_terminal();
+        if let Err(e) = restore_terminal() {
+            eprintln!("Failed to restore terminal after panic: {e}");
+        }
         original_hook(panic_info);
     }));
 
@@ -36,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn restore_terminal() -> Result<(), Box<dyn std::error::Error>> {
-    disable_raw_mode()?;
-    stdout().execute(LeaveAlternateScreen)?;
+    let _ = disable_raw_mode();
+    let _ = stdout().execute(LeaveAlternateScreen);
     Ok(())
 }

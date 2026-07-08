@@ -111,3 +111,50 @@ pub fn parse_session_list(output: &str) -> Vec<(u32, String, String)> {
     }
     sessions
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_module_list_extracts_entries() {
+        let output = "Header\n=====\nexploit/windows/smb/ms17_010_eternalblue excellent MS17-010 EternalBlue SMB Remote Windows Kernel Pool Corruption\nauxiliary/scanner/ssh/ssh_login normal SSH login scanner\n";
+        let modules = parse_module_list(output);
+
+        assert_eq!(modules.len(), 2);
+        assert_eq!(modules[0].name, "exploit/windows/smb/ms17_010_eternalblue");
+        assert_eq!(modules[0].rank, "excellent");
+        assert!(modules[0]
+            .description
+            .starts_with("MS17-010 EternalBlue SMB Remote"));
+
+        assert_eq!(modules[1].name, "auxiliary/scanner/ssh/ssh_login");
+        assert_eq!(modules[1].rank, "normal");
+        assert!(modules[1].description.contains("SSH login scanner"));
+    }
+
+    #[test]
+    fn parse_search_results_extracts_results() {
+        let output = "Matching Modules\n====\nexploit/windows/smb/ms17_010_eternalblue excellent MS17-010 EternalBlue SMB Remote Windows Kernel Pool Corruption\nauxiliary/scanner/ssh/ssh_login normal SSH login scanner\n";
+        let results = parse_search_results(output);
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].name, "exploit/windows/smb/ms17_010_eternalblue");
+        assert_eq!(results[0].rank, "excellent");
+        assert!(results[0]
+            .description
+            .contains("EternalBlue SMB Remote"));
+        assert_eq!(results[1].name, "auxiliary/scanner/ssh/ssh_login");
+    }
+
+    #[test]
+    fn parse_session_list_returns_sessions() {
+        let output = "\nid   type  information\n---- ------ --------------------------\n1    meterpreter x86/linux    127.0.0.1:4444 -> 127.0.0.1:1234\n2    shell      x86/linux    127.0.0.1:4444 -> 127.0.0.1:1235\n";
+        let sessions = parse_session_list(output);
+
+        assert_eq!(sessions.len(), 2);
+        assert_eq!(sessions[0].0, 1);
+        assert_eq!(sessions[0].1, "meterpreter");
+        assert_eq!(sessions[0].2, "x86/linux");
+    }
+}
